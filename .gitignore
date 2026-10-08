@@ -1,0 +1,6 @@
+/leakinator
+/leakinator.exe
+/dist/
+/pkg/aur/*.pkg.tar.*
+/pkg/aur/src/
+/pkg/aur/pkg/
