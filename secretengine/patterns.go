@@ -97,25 +97,27 @@ const (
 
 // Order matters: earlier rules win when matches overlap
 // (sk-ant- is Anthropic, not OpenAI; sk_live_ is Stripe).
+// Distinctive prefixes (ghp_, xoxb-, eyJ…) need no word boundary before
+// them: in text without spaces a word can run into them.
 var rules = []rule{
 	{Rule: Rule{"private-key", "Private key"},
-		re: regexp.MustCompile(`(?i)BEGIN\s+(?:[A-Z0-9]+\s+){0,3}PRIVATE\s+KEY`)},
+		re: regexp.MustCompile(`(?i)BEGIN\s*(?:[A-Z0-9]+\s*){0,3}?PRIVATE\s*KEY`)},
 	{Rule: Rule{"anthropic-key", "Anthropic API key"},
-		re: regexp.MustCompile(nb + `(` + lit("sk-ant-") + `[A-Za-z0-9_\-]{16,})`), group: 1, random: mixed},
+		re: regexp.MustCompile(`(` + lit("sk-ant-") + `[A-Za-z0-9_\-]{16,})`), group: 1, random: mixed},
 	{Rule: Rule{"stripe-key", "Stripe secret key"},
-		re: regexp.MustCompile(nb + `((?:` + lit("sk_live_") + `|` + lit("sk_test_") + `|` + lit("rk_live_") + `|` + lit("rk_test_") + `)[A-Za-z0-9]{16,})`), group: 1, random: mixed},
+		re: regexp.MustCompile(`((?:` + lit("sk_live_") + `|` + lit("sk_test_") + `|` + lit("rk_live_") + `|` + lit("rk_test_") + `)[A-Za-z0-9]{16,})`), group: 1, random: mixed},
 	{Rule: Rule{"openai-key", "OpenAI API key"},
 		re: regexp.MustCompile(nb + `(` + lit("sk-") + `(?:` + lit("proj-") + `|` + lit("svcacct-") + `|` + lit("admin-") + `)?[A-Za-z0-9_\-]{20,})`), group: 1, random: mixed},
 	{Rule: Rule{"github-token", "GitHub token"},
-		re: regexp.MustCompile(nb + `((?:` + lit("gh") + `[pousrPOUSR]` + lit("_") + `[A-Za-z0-9]{20,})|(?:` + lit("github_pat_") + `[A-Za-z0-9_]{20,}))`), group: 1, random: mixed},
+		re: regexp.MustCompile(`((?:` + lit("gh") + `[pousrPOUSR]` + lit("_") + `[A-Za-z0-9]{20,})|(?:` + lit("github_pat_") + `[A-Za-z0-9_]{20,}))`), group: 1, random: mixed},
 	{Rule: Rule{"aws-access-key", "AWS access key ID"},
 		re: regexp.MustCompile(nb + `((?:A[K][lI1|]A|AS[lI1|]A|ABIA|ACCA)[A-Z0-9]{12,16})` + na), group: 1},
 	{Rule: Rule{"aws-secret-key", "AWS secret access key"},
 		re: regexp.MustCompile(`(?i)aws.{0,24}?(?:secret|sk).{0,24}?[=:]\s*["']?([A-Za-z0-9/+]{30,40})` + na), group: 1, random: mixed},
 	{Rule: Rule{"slack-token", "Slack token"},
-		re: regexp.MustCompile(nb + `(` + lit("xox") + `[baprseBAPRSE]` + lit("-") + `[A-Za-z0-9\-]{10,})`), group: 1, random: mixed},
+		re: regexp.MustCompile(`(` + lit("xox") + `[baprseBAPRSE]` + lit("-") + `[A-Za-z0-9\-]{10,})`), group: 1, random: mixed},
 	{Rule: Rule{"slack-webhook", "Slack webhook URL"},
 		re: regexp.MustCompile(`hooks\.slack\.com/services/[A-Za-z0-9/]{16,}`)},
 	{Rule: Rule{"jwt", "JWT (login token)"},
-		re: regexp.MustCompile(nb + `([eE][yY][jJ][A-Za-z0-9_\-]{8,}\.[eE][yY][jJ][A-Za-z0-9_\-]{4,}(?:\.[A-Za-z0-9_\-]*)?)`), group: 1},
+		re: regexp.MustCompile(`([eE][yY][jJ][A-Za-z0-9_\-]{8,}\.[eE][yY][jJ][A-Za-z0-9_\-]{4,}(?:\.[A-Za-z0-9_\-]*)?)`), group: 1},
 }

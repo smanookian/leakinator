@@ -3,6 +3,7 @@ package secretengine
 import (
 	"sync"
 	"unicode"
+	"unicode/utf8"
 )
 
 // fold maps characters that OCR often mixes up to one form,
@@ -24,7 +25,7 @@ func foldRune(r rune) rune {
 		return 'z'
 	case 'f', 't':
 		return 't'
-	case '_', '-', ' ', '\t', '—', '–':
+	case '_', '-', '—', '–':
 		return '_'
 	case '“', '”', '„':
 		return '"'
@@ -34,29 +35,90 @@ func foldRune(r rune) rune {
 	return r
 }
 
+// fold folds s and drops spaces: OCR often adds or loses them.
 func fold(s string) []rune {
 	out := make([]rune, 0, len(s))
 	for _, r := range s {
-		out = append(out, foldRune(r))
+		if !unicode.IsSpace(r) {
+			out = append(out, foldRune(r))
+		}
 	}
 	return out
 }
 
-// foldedText is folded text plus the byte offset of each rune in the
-// original text. offsets has one extra entry: len(text).
+// foldedText is folded text without spaces. For each rune it keeps the
+// byte offsets in the original text where the rune starts and ends.
 type foldedText struct {
-	runes   []rune
-	offsets []int
+	runes        []rune
+	starts, ends []int
 }
 
 func foldText(s string) foldedText {
-	ft := foldedText{runes: make([]rune, 0, len(s)), offsets: make([]int, 0, len(s)+1)}
+	ft := foldedText{runes: make([]rune, 0, len(s)), starts: make([]int, 0, len(s)), ends: make([]int, 0, len(s))}
 	for i, r := range s {
-		ft.runes = append(ft.runes, foldRune(r))
-		ft.offsets = append(ft.offsets, i)
+		if !unicode.IsSpace(r) {
+			ft.runes = append(ft.runes, foldRune(r))
+			ft.starts = append(ft.starts, i)
+			ft.ends = append(ft.ends, i+utf8.RuneLen(r))
+		}
 	}
-	ft.offsets = append(ft.offsets, len(s))
 	return ft
+}
+
+// within finds all of s inside t with the fewest edits (insert, delete,
+// change one character). It returns the edits and where in t it matched.
+func within(s, t []rune) (edits, tStart, tEnd int) {
+	n, m := len(s), len(t)
+	if n == 0 || m == 0 {
+		return n, 0, 0
+	}
+	w := m + 1
+	bp := scorePool.Get().(*[]int32)
+	defer scorePool.Put(bp)
+	need := (n + 1) * w
+	if cap(*bp) < need {
+		*bp = make([]int32, need)
+	}
+	D := (*bp)[:need]
+	for j := range w {
+		D[j] = 0 // the match may start anywhere in t
+	}
+	for i := 1; i <= n; i++ {
+		row, prev := D[i*w:], D[(i-1)*w:]
+		row[0] = int32(i)
+		for j := 1; j <= m; j++ {
+			c := prev[j-1]
+			if s[i-1] != t[j-1] {
+				c++
+			}
+			row[j] = min(c, prev[j]+1, row[j-1]+1)
+		}
+	}
+	last := D[n*w:]
+	tEnd = 1
+	for j := 2; j <= m; j++ {
+		if last[j] < last[tEnd] {
+			tEnd = j
+		}
+	}
+	// Walk back to find where the match starts.
+	i, j := n, tEnd
+	for i > 0 && j > 0 {
+		v := D[i*w+j]
+		c := D[(i-1)*w+j-1]
+		if s[i-1] != t[j-1] {
+			c++
+		}
+		switch {
+		case v == c:
+			i, j = i-1, j-1
+		case v == D[(i-1)*w+j]+1:
+			i--
+		default:
+			j--
+		}
+	}
+	return int(last[tEnd]), j, tEnd
 }
 
 // alignment is the best local match of a secret s inside a text t.

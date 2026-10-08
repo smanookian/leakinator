@@ -104,6 +104,10 @@ func TestPatterns(t *testing.T) {
 		{"jwt", "Authorization: Bearer eyJhbGci0iJIUzIINiIsInR5cCI6IkpXVCJ9.eyJzdWIi0iIOMiJ9.mtfYSsGnDiQKbBQgzullaGlwstSxjYvBq", "eyJh…"},
 		{"private-key", "-----BEGIN RSA PRIVATE KEY-----", "BEGI…"},
 		{"private-key", "-----BEGIN OPENSSH PRIVATE KEY-----", "BEGI…"},
+		// Tesseract's "fast" model (Ubuntu) puts spaces inside keys.
+		{"openai-key", "OPENAI_API_KEY=sk- proj - 17IFL75Wo7hlLOPqkfNellLtAQ3mmmUk f2nZqgOTEq", "sk-p…"},
+		{"github-token", "git remote set-url origin https://gh" + "p_JAVqlz4CE80j y62uL4BS fNLmYYQwOvfIkIZI@github.com/me/app", "ghp_…"},
+		{"slack-token", "SLACK_BOT_TOKEN=xo" + "xb - 716831189025 - 2170189170554 - 9t fhvQJuaGruDs93E7jLAhSn", "xoxb…"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.rule, func(t *testing.T) {
@@ -128,6 +132,8 @@ func TestNoFalseAlarms(t *testing.T) {
 		"const sha = createHash(\"sha256\").update(body).digest(\"hex\");",
 		"export AWS_REGION=eu-central-1",
 		"password: ********",
+		"The bridge weighs about Ten thousand tons since 2024 and laughs at storms",
+		"curl -H \"Authorization: Bearer $TOKEN\" https://api.example.com/v1/items",
 		"",
 	}
 	for _, line := range clean {

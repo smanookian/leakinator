@@ -127,37 +127,51 @@ func (e *Engine) Scan(text string) []Finding {
 			}
 		}
 	}
+	// OCR often puts spaces inside keys ("ghp_JAVq lz4C"), so patterns
+	// also run on the text without spaces.
+	compact, offs := removeSpaces(text)
 	for _, r := range e.patterns {
 		out = append(out, r.find(text)...)
+		if len(compact) < len(text) {
+			for _, f := range r.find(compact) {
+				f.Start, f.End = offs[f.Start], offs[f.End-1]+1
+				out = append(out, f)
+			}
+		}
 	}
 	return dedupe(out)
 }
 
+// removeSpaces returns s without spaces and, for each byte of the result,
+// its offset in s.
+func removeSpaces(s string) (string, []int) {
+	var b strings.Builder
+	offs := make([]int, 0, len(s))
+	for i := range len(s) {
+		if c := s[i]; c != ' ' && c != '\t' {
+			b.WriteByte(c)
+			offs = append(offs, i)
+		}
+	}
+	return b.String(), offs
+}
+
 func (e *Engine) matchSecret(s *prepared, ft foldedText) (Finding, bool) {
 	n := len(s.folded)
-	a := align(s.folded, ft.runes)
-	if a.matches == 0 {
+	if len(ft.runes) == 0 {
 		return Finding{}, false
 	}
-	errs := a.errors
-	missing := n - (a.sEnd - a.sStart) // parts of the secret not in the alignment
-	f := Finding{
-		Rule:    "env",
-		Label:   s.Name,
-		Source:  s.Source,
-		Masked:  s.masked,
-		Start:   ft.offsets[a.tStart],
-		End:     ft.offsets[a.tEnd],
-		Matched: a.matches,
-		Of:      n,
-	}
-	if errs+missing <= int(float64(n)*e.maxErr) {
-		f.Kind = Exact
+	f := Finding{Rule: "env", Label: s.Name, Source: s.Source, Masked: s.masked, Of: n}
+	// All of the secret, with a few OCR mistakes?
+	if edits, ts, te := within(s.folded, ft.runes); edits <= int(float64(n)*e.maxErr) && te > ts {
+		f.Kind, f.Start, f.End, f.Matched = Exact, ft.starts[ts], ft.ends[te-1], n-edits
 		return f, true
 	}
+	// A long piece of it (cut off at the screen edge, or partly covered)?
+	a := align(s.folded, ft.runes)
 	span := a.sEnd - a.sStart
-	if n > e.minPartial && a.matches >= e.minPartial && errs <= int(float64(span)*e.maxErr) {
-		f.Kind = Partial
+	if n > e.minPartial && a.matches >= e.minPartial && a.errors <= int(float64(span)*e.maxErr) {
+		f.Kind, f.Start, f.End, f.Matched = Partial, ft.starts[a.tStart], ft.ends[a.tEnd-1], a.matches
 		return f, true
 	}
 	return Finding{}, false

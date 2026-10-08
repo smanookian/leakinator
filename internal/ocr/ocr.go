@@ -75,8 +75,10 @@ func New() (*Reader, error) {
 // is inverted first; tesseract reads dark text on light best.
 func (r *Reader) Read(ctx context.Context, img *image.Gray, mode Mode) ([]Line, error) {
 	in := pgm(img, isDark(img))
+	// TSV is asked for with -c, not the "tsv" config file: some installs
+	// lack the configs folder and then print plain text instead.
 	cmd := exec.CommandContext(ctx, r.bin, "stdin", "stdout", "-l", "eng", "--psm", strconv.Itoa(int(mode)),
-		"-c", "tessedit_do_invert=0", "tsv")
+		"-c", "tessedit_do_invert=0", "-c", "tessedit_create_tsv=1", "-c", "tessedit_create_txt=0")
 	cmd.Stdin = bytes.NewReader(in)
 	// One thread per call; we run one call per CPU core instead.
 	cmd.Env = append(os.Environ(), "OMP_THREAD_LIMIT=1")
@@ -86,8 +88,10 @@ func (r *Reader) Read(ctx context.Context, img *image.Gray, mode Mode) ([]Line, 
 	if err != nil {
 		return nil, fmt.Errorf("tesseract: %v: %s", err, bytes.TrimSpace(stderr.Bytes()))
 	}
-	off := img.Rect.Min
-	return parseTSV(out, off), nil
+	if !bytes.HasPrefix(out, []byte("level\t")) {
+		return nil, fmt.Errorf("tesseract gave no TSV output: %s", bytes.TrimSpace(stderr.Bytes()))
+	}
+	return parseTSV(out, img.Rect.Min), nil
 }
 
 func isDark(img *image.Gray) bool {

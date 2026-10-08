@@ -1,0 +1,21 @@
+# Maintainer: Stepan Manookian <jclstefan@yahoo.de>
+pkgname=leakinator-bin
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Check your coding video before upload: secrets on screen, small text, loudness"
+arch=('x86_64' 'aarch64')
+url="https://github.com/smanookian/leakinator"
+license=('MIT')
+depends=('ffmpeg' 'tesseract' 'tesseract-data-eng')
+provides=('leakinator')
+conflicts=('leakinator')
+source_x86_64=("$url/releases/download/v$pkgver/leakinator_${pkgver}_linux_amd64.tar.gz")
+source_aarch64=("$url/releases/download/v$pkgver/leakinator_${pkgver}_linux_arm64.tar.gz")
+sha256sums_x86_64=('SKIP')
+sha256sums_aarch64=('SKIP')
+
+package() {
+	install -Dm755 leakinator "$pkgdir/usr/bin/leakinator"
+	install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+	install -Dm644 README.md "$pkgdir/usr/share/doc/$pkgname/README.md"
+}
