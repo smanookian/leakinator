@@ -43,4 +43,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ github.ref_name }}
-        run: gh release create "$TAG" dist/* --title "$TAG" --notes "Install: see README. Needs ffmpeg and tesseract."
+        run: |
+          gh release create "$TAG" dist/* --title "$TAG" --notes "Needs ffmpeg and tesseract. Install steps are in the README."
