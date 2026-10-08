@@ -47,6 +47,12 @@ type Finding struct {
 	Of int `json:"of,omitempty"`
 }
 
+// Key is the same for findings of the same secret, even when OCR read
+// its first characters a bit differently ("x0xb" and "xoxb").
+func (f Finding) Key() string {
+	return f.Rule + "\x00" + f.Label + "\x00" + string(fold(f.Masked))
+}
+
 // Options configure an Engine. Zero values use the defaults.
 type Options struct {
 	Secrets []Secret

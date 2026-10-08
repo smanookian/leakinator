@@ -13,10 +13,11 @@ jobs:
     name: Test (Linux, with ffmpeg + tesseract)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: stable
+          cache: false # no dependencies
       - name: Install ffmpeg and tesseract
         run: sudo apt-get update && sudo apt-get install -y ffmpeg tesseract-ocr tesseract-ocr-eng
       - run: go vet ./...
@@ -30,10 +31,11 @@ jobs:
         os: [ubuntu-latest, macos-latest, windows-latest]
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: stable
+          cache: false
       # Video tests skip themselves when ffmpeg or tesseract is missing.
       - run: go test -count=1 ./...
       - name: Build
@@ -44,7 +46,7 @@ jobs:
           go build -trimpath -ldflags "-s -w" -o dist/ ./cmd/leakinator
           ls -l dist
           ./dist/leakinator --version
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: leakinator-${{ runner.os }}
           path: dist/

@@ -108,6 +108,8 @@ func TestPatterns(t *testing.T) {
 		{"openai-key", "OPENAI_API_KEY=sk- proj - 17IFL75Wo7hlLOPqkfNellLtAQ3mmmUk f2nZqgOTEq", "sk-p…"},
 		{"github-token", "git remote set-url origin https://gh" + "p_JAVqlz4CE80j y62uL4BS fNLmYYQwOvfIkIZI@github.com/me/app", "ghp_…"},
 		{"slack-token", "SLACK_BOT_TOKEN=xo" + "xb - 716831189025 - 2170189170554 - 9t fhvQJuaGruDs93E7jLAhSn", "xoxb…"},
+		// The shown characters never include OCR's extra spaces.
+		{"anthropic-key", "ANTHROPIC_API_KEY=sk- " + "ant-api03-Xq3Lp0V9mWk2RtY7uZbN4sGfHd1Je8CoAi5", "sk-a…"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.rule, func(t *testing.T) {
@@ -165,6 +167,20 @@ func TestFindingsNeverHoldSecret(t *testing.T) {
 		if strings.Contains(string(b), s[4:9]) {
 			t.Fatalf("JSON holds part of a secret beyond the first 4 chars: %s", b)
 		}
+	}
+}
+
+// OCR reading the first characters a bit differently is still the same key.
+func TestKeySurvivesLookAlikes(t *testing.T) {
+	e := New(Options{})
+	a := one(t, e.Scan("SLACK_BOT_TOKEN=x0x"+"b-716831189025-2170189170554-9tfhvQJuaGruDs93E7jLAhSn"))
+	b := one(t, e.Scan("SLACK_BOT_TOKEN=xox"+"b-716831189025-2170189170554-9tfhvQJuaGruDs93E7jLAhSn"))
+	c := one(t, e.Scan("token = gh"+"p_JAVqlz4CE8Ojy62uL4BSfNLmYYQwOvfIkIZI"))
+	if a.Key() != b.Key() {
+		t.Fatalf("%q and %q differ", a.Masked, b.Masked)
+	}
+	if a.Key() == c.Key() {
+		t.Fatal("different rules share a key")
 	}
 }
 

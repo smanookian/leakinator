@@ -246,7 +246,7 @@ func replay(res *Result, results []result, end float64, o Options) {
 		var blur []image.Rectangle
 		for _, l := range model {
 			for _, h := range l.hits {
-				k := h.f.Rule + "\x00" + h.f.Label + "\x00" + h.f.Masked
+				k := h.f.Key()
 				if old, ok := present[k]; !ok || (old.f.Kind != secretengine.Exact && h.f.Kind == secretengine.Exact) {
 					present[k] = h
 				}
@@ -340,7 +340,7 @@ func mergeHits(hits []SecretHit) []SecretHit {
 	var out []SecretHit
 	last := map[string]int{}
 	for _, h := range hits {
-		k := h.Rule + "\x00" + h.Label + "\x00" + h.Masked
+		k := h.Key()
 		if i, ok := last[k]; ok && h.Start-out[i].End <= gap {
 			out[i].End = max(out[i].End, h.End)
 			if h.Kind == secretengine.Exact {

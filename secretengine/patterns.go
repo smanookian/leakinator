@@ -41,7 +41,8 @@ func (r rule) find(text string) []Finding {
 		if r.random != nil && !r.random(key) {
 			continue
 		}
-		out = append(out, Finding{Kind: Pattern, Rule: r.ID, Label: r.Label, Masked: Mask(key), Start: start, End: end})
+		masked, _ := removeSpaces(key)
+		out = append(out, Finding{Kind: Pattern, Rule: r.ID, Label: r.Label, Masked: Mask(masked), Start: start, End: end})
 	}
 	return out
 }
