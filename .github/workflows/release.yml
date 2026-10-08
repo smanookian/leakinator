@@ -1,0 +1,45 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: stable
+      - name: Build all platforms
+        env:
+          CGO_ENABLED: "0"
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          ver="${TAG#v}"
+          mkdir -p dist
+          for target in linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64; do
+            os="${target%/*}"; arch="${target#*/}"
+            name="leakinator_${ver}_${os}_${arch}"
+            exe=leakinator; [ "$os" = windows ] && exe=leakinator.exe
+            mkdir -p "build/$name"
+            GOOS=$os GOARCH=$arch go build -trimpath -ldflags "-s -w -X main.version=$ver" -o "build/$name/$exe" ./cmd/leakinator
+            cp LICENSE README.md "build/$name/"
+            if [ "$os" = windows ]; then
+              (cd build/$name && zip -q "../../dist/$name.zip" *)
+            else
+              tar -C "build/$name" -czf "dist/$name.tar.gz" .
+            fi
+          done
+          (cd dist && sha256sum * > checksums.txt)
+          ls -l dist
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: gh release create "$TAG" dist/* --title "$TAG" --notes "Install: see README. Needs ffmpeg and tesseract."
