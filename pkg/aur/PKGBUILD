@@ -9,10 +9,11 @@ license=('MIT')
 depends=('ffmpeg' 'tesseract' 'tesseract-data-eng')
 provides=('leakinator')
 conflicts=('leakinator')
+options=('!debug' '!strip')
 source_x86_64=("$url/releases/download/v$pkgver/leakinator_${pkgver}_linux_amd64.tar.gz")
 source_aarch64=("$url/releases/download/v$pkgver/leakinator_${pkgver}_linux_arm64.tar.gz")
-sha256sums_x86_64=('SKIP')
-sha256sums_aarch64=('SKIP')
+sha256sums_x86_64=('f39b1a85a3e115be511f25a5678488065462b6a44c332a94797d6e6c88e64f5c')
+sha256sums_aarch64=('9e23ea6bc1017a7e1c5c4412ec1fb399a68acb08308680c7e813ed995eff5004')
 
 package() {
 	install -Dm755 leakinator "$pkgdir/usr/bin/leakinator"

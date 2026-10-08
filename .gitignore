@@ -4,3 +4,4 @@
 /pkg/aur/*.pkg.tar.*
 /pkg/aur/src/
 /pkg/aur/pkg/
+/pkg/aur/*.tar.gz

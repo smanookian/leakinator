@@ -1,0 +1,21 @@
+pkgbase = leakinator-bin
+	pkgdesc = Check your coding video before upload: secrets on screen, small text, loudness
+	pkgver = 0.1.0
+	pkgrel = 1
+	url = https://github.com/smanookian/leakinator
+	arch = x86_64
+	arch = aarch64
+	license = MIT
+	depends = ffmpeg
+	depends = tesseract
+	depends = tesseract-data-eng
+	provides = leakinator
+	conflicts = leakinator
+	options = !debug
+	options = !strip
+	source_x86_64 = https://github.com/smanookian/leakinator/releases/download/v0.1.0/leakinator_0.1.0_linux_amd64.tar.gz
+	sha256sums_x86_64 = f39b1a85a3e115be511f25a5678488065462b6a44c332a94797d6e6c88e64f5c
+	source_aarch64 = https://github.com/smanookian/leakinator/releases/download/v0.1.0/leakinator_0.1.0_linux_arm64.tar.gz
+	sha256sums_aarch64 = 9e23ea6bc1017a7e1c5c4412ec1fb399a68acb08308680c7e813ed995eff5004
+
+pkgname = leakinator-bin
