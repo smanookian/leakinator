@@ -1,14 +1,11 @@
 // Command mkfixtures makes the test videos in testdata/videos.
-//
-// Fake keys are built at run time from a fixed seed, so no key-like string
-// sits in the source (GitHub push protection would block it).
+// The fake keys come from internal/fakekeys.
 //
 //	go run ./tools/mkfixtures            # small test videos (committed)
 //	go run ./tools/mkfixtures -long out.mp4   # 20-minute 1080p speed test video
 package main
 
 import (
-	"encoding/base64"
 	"flag"
 	"fmt"
 	"math/rand/v2"
@@ -16,6 +13,8 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+
+	"github.com/smanookian/leakinator/internal/fakekeys"
 )
 
 const (
@@ -41,7 +40,7 @@ func main() {
 		return
 	}
 	check(os.MkdirAll(*out, 0o755))
-	k := fakeKeys()
+	k := fakekeys.New()
 	makeEnvKey(tmp, filepath.Join(*out, "env_key.mp4"))
 	makePatternKeys(tmp, filepath.Join(*out, "pattern_keys.mp4"), k)
 	makeClean(tmp, filepath.Join(*out, "clean.mp4"))
@@ -49,46 +48,10 @@ func main() {
 	makeLoudAudio(tmp, filepath.Join(*out, "loud_audio.mp4"))
 }
 
-// Values from testdata/test.env. They match no known key pattern on purpose,
-// so only the exact (.env) match can find them.
 const (
-	envToken    = "tk_9fQ2xZ7pLm4Rv9sK3wYb8Hc"
-	envPassword = "Hunter2-Correct-Horse-91"
+	envToken    = fakekeys.EnvToken
+	envPassword = fakekeys.EnvPassword
 )
-
-type keys struct {
-	openai, anthropic, github, awsID, awsSecret, stripe, slack, jwt string
-	privBody                                                       []string
-}
-
-func fakeKeys() keys {
-	r := rand.New(rand.NewPCG(42, 0))
-	const b62 = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789"
-	s := func(n int, set string) string {
-		b := make([]byte, n)
-		for i := range b {
-			b[i] = set[r.IntN(len(set))]
-		}
-		return string(b)
-	}
-	digits := "0123456789"
-	b64 := b62 + "+/"
-	var k keys
-	k.openai = "sk-" + "proj-" + s(40, b62)
-	k.anthropic = "sk-" + "ant-api03-" + s(40, b62)
-	k.github = "gh" + "p_" + s(36, b62)
-	k.awsID = "AK" + "IA" + s(16, "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567")
-	k.awsSecret = s(40, b64)
-	k.stripe = "sk_" + "live_" + s(24, b62)
-	k.slack = "xo" + "xb-" + s(12, digits) + "-" + s(13, digits) + "-" + s(24, b62)
-	enc := base64.RawURLEncoding
-	k.jwt = enc.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`)) + "." +
-		enc.EncodeToString([]byte(`{"sub":"42"}`)) + "." + s(43, b62)
-	for range 3 {
-		k.privBody = append(k.privBody, s(64, b64))
-	}
-	return k
-}
 
 // scene is text shown from start to end (seconds) at a font size.
 type scene struct {
@@ -136,7 +99,7 @@ func render(tmp, out string, dur float64, fps int, scenes []scene, audio string)
 		args = append(args, "-f", "lavfi", "-i", audio)
 	}
 	args = append(args, "-vf", vf, "-c:v", "libx264", "-preset", "medium", "-crf", "23", "-pix_fmt", "yuv420p",
-		"-x264-params", "keyint=" + fmt.Sprint(fps*10))
+		"-x264-params", "keyint="+fmt.Sprint(fps*10))
 	if audio != "" {
 		args = append(args, "-c:a", "aac", "-b:a", "128k", "-shortest")
 	}
@@ -156,17 +119,17 @@ func makeEnvKey(tmp, out string) {
 	}, "")
 }
 
-func makePatternKeys(tmp, out string, k keys) {
+func makePatternKeys(tmp, out string, k fakekeys.Keys) {
 	code := codeLines()[:7]
 	shown := [][]string{
-		{"OPENAI_API_KEY=" + k.openai},
-		{"ANTHROPIC_API_KEY=" + k.anthropic},
-		{"git remote set-url origin https://" + k.github + "@github.com/me/app"},
-		{"aws_access_key_id = " + k.awsID, "aws_secret_access_key = " + k.awsSecret},
-		{"stripe.api_key = \"" + k.stripe + "\""},
-		{"SLACK_BOT_TOKEN=" + k.slack},
-		{"Authorization: Bearer " + k.jwt},
-		append(append([]string{"-----BEGIN RSA PRIVATE KEY-----"}, k.privBody...), "-----END RSA PRIVATE KEY-----"),
+		{"OPENAI_API_KEY=" + k.OpenAI},
+		{"ANTHROPIC_API_KEY=" + k.Anthropic},
+		{"git remote set-url origin https://" + k.GitHub + "@github.com/me/app"},
+		{"aws_access_key_id = " + k.AWSID, "aws_secret_access_key = " + k.AWSSecret},
+		{"stripe.api_key = \"" + k.Stripe + "\""},
+		{"SLACK_BOT_TOKEN=" + k.Slack},
+		{"Authorization: Bearer " + k.JWT},
+		append(append([]string{"-----BEGIN RSA PRIVATE KEY-----"}, k.PrivateKeyBody...), "-----END RSA PRIVATE KEY-----"),
 	}
 	scenes := []scene{{0, 18, 28, 80, 60, code}}
 	for i, lines := range shown {
@@ -191,7 +154,7 @@ func makeClean(tmp, out string) {
 	render(tmp, out, 15, 10, []scene{
 		{0, 15, 28, 80, 60, codeLines()},
 		{0, 15, 28, 80, 640, lines},
-	}, "anoisesrc=color=pink:amplitude=0.25:seed=7,lowpass=f=4000,volume=-1.5dB,atrim=0:15")
+	}, "aevalsrc=exprs='0.307*sin(2*PI*440*t)':s=48000:d=15") // about -14 LUFS
 }
 
 func makeSmallText(tmp, out string) {
@@ -209,7 +172,7 @@ func makeSmallText(tmp, out string) {
 
 func makeLoudAudio(tmp, out string) {
 	// 0-6 s loud noise, hard clipped at 2-4 s; 6-12 s silence; 12-20 s noise.
-	a := "anoisesrc=color=pink:amplitude=0.5:seed=3,lowpass=f=5000," +
+	a := "anoisesrc=color=pink:amplitude=0.5:seed=3,lowpass=f=5000,volume=5dB," +
 		"volume=enable='between(t,2,4)':volume=18dB," +
 		"volume=enable='between(t,6,12)':volume=0," +
 		"aformat=sample_fmts=s16,atrim=0:20"
@@ -225,7 +188,7 @@ func makeLong(tmp, out string) {
 	words := []string{"user", "order", "cache", "item", "price", "total", "request", "client", "config", "result"}
 	page := func() []string {
 		var lines []string
-		for len(lines) < 26 {
+		for len(lines) < 22 {
 			w := words[r.IntN(len(words))]
 			v := words[r.IntN(len(words))]
 			switch r.IntN(4) {
@@ -239,7 +202,7 @@ func makeLong(tmp, out string) {
 				lines = append(lines, fmt.Sprintf("    %s.Total += %s.Price * %d", w, v, r.IntN(100)))
 			}
 		}
-		return lines
+		return lines[:22] // 22 lines end near y=900; the token is drawn below
 	}
 	const dur = 1200.0
 	var filters []string
@@ -255,16 +218,16 @@ func makeLong(tmp, out string) {
 	for t := 0.0; t < dur; t += 15 {
 		add(t, t+15, 26, 80, 40, page())
 	}
-	add(600, 603, 26, 80, 1000, []string{"MY_API_TOKEN=" + envToken})
-	filters = append(filters,
-		// blinking text cursor
-		"drawbox=x=1200:y=500:w=3:h=28:color=white:t=fill:enable='lt(mod(t,1),0.5)'",
-		// mouse pointer wandering around
-		"drawbox=x='900+700*sin(t/7)':y='500+400*sin(t/5)':w=14:h=20:color=white:t=fill")
+	add(600, 603, 26, 80, 980, []string{"MY_API_TOKEN=" + envToken})
+	// blinking text cursor
+	filters = append(filters, "drawbox=x=1200:y=500:w=3:h=28:color=white:t=fill:enable='lt(mod(t,1),0.5)'")
+	// mouse pointer wandering around, also over the text
+	graph := "[0:v]" + strings.Join(filters, ",") + "[bg];color=c=white:s=14x20:r=30[p];" +
+		"[bg][p]overlay=x='900+800*sin(t/7)':y='500+420*sin(t/5)':eval=frame:shortest=1[v]"
 	run("-y", "-hide_banner", "-loglevel", "error",
 		"-f", "lavfi", "-i", fmt.Sprintf("color=c=%s:s=%dx%d:r=30:d=%g", bg, width, height, dur),
-		"-f", "lavfi", "-i", "anoisesrc=color=pink:amplitude=0.25:seed=9,lowpass=f=4000",
-		"-vf", strings.Join(filters, ","),
+		"-f", "lavfi", "-i", "aevalsrc=exprs='0.307*sin(2*PI*440*t)':s=48000",
+		"-filter_complex", graph, "-map", "[v]", "-map", "1:a",
 		"-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
 		"-c:a", "aac", "-b:a", "128k", "-t", fmt.Sprint(dur), "-movflags", "+faststart", out)
 	fmt.Println("wrote", out)
