@@ -1,0 +1,112 @@
+# Installs leakinator on fresh systems the way a user would, then tests it:
+# 1. install.sh (or the Windows steps from the README)
+# 2. tools/smoke.sh: the installed release on the test videos
+# 3. go test: this commit's code with that system's ffmpeg and tesseract
+name: Systems
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  LEAKINATOR_REQUIRE_TOOLS: "1" # tests fail instead of skipping when a tool is missing
+
+jobs:
+  linux-container:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    container: ${{ matrix.image }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Arch Linux
+            image: archlinux:latest
+            prep: pacman -Syu --noconfirm curl tar git
+          - name: Debian
+            image: debian:stable
+            prep: apt-get update && apt-get install -y curl ca-certificates git
+          - name: Fedora
+            image: fedora:latest
+            # ffmpeg comes from RPM Fusion, as install.sh tells users.
+            prep: >-
+              dnf install -y curl tar git findutils &&
+              dnf install -y https://mirrors.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm
+    env:
+      LEAKINATOR_DIR: /usr/local/bin
+    steps:
+      - name: Prepare a fresh system (curl, tar)
+        run: ${{ matrix.prep }}
+      - uses: actions/checkout@v7
+      - name: install.sh
+        run: sh install.sh
+      - name: Smoke test (installed release)
+        run: sh tools/smoke.sh /usr/local/bin/leakinator
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      - name: Tests (this commit)
+        run: go test -count=1 ./...
+
+  ubuntu:
+    name: Ubuntu
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: install.sh
+        run: sh install.sh
+      - name: Smoke test (installed release)
+        run: sh tools/smoke.sh "$HOME/.local/bin/leakinator"
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      - name: Tests (this commit)
+        run: go test -count=1 ./...
+
+  macos:
+    name: macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v7
+      - name: install.sh
+        run: sh install.sh
+      - name: Smoke test (installed release)
+        run: sh tools/smoke.sh "$HOME/.local/bin/leakinator"
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      - name: Tests (this commit)
+        run: go test -count=1 ./...
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+      - name: Install ffmpeg and tesseract
+        run: choco install -y --no-progress ffmpeg tesseract
+      - name: Download latest release
+        run: |
+          latest=$(curl -fsSLI -o /dev/null -w '%{url_effective}' https://github.com/smanookian/leakinator/releases/latest)
+          ver=${latest##*/v}
+          curl -fsSL -o lk.zip "https://github.com/smanookian/leakinator/releases/download/v$ver/leakinator_${ver}_windows_amd64.zip"
+          mkdir -p "$HOME/lk" && unzip -o lk.zip -d "$HOME/lk"
+      - name: Smoke test (installed release)
+        run: sh tools/smoke.sh "$HOME/lk/leakinator.exe"
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      - name: Tests (this commit)
+        run: go test -count=1 ./...

@@ -54,6 +54,7 @@ type Result struct {
 	Samples        int // frames looked at
 	Reads          int // OCR calls
 	FullReads      int // OCR calls on whole frames
+	Scrolls        int // frames where text moved and was not read again
 	Secrets        []SecretHit
 	SmallText      []SmallText
 }
@@ -83,6 +84,7 @@ type result struct {
 	full        bool
 	keep        band
 	lines       []textLine
+	scroll      *change // set: move the text on screen, no OCR
 }
 
 // Video scans the frames of a video.
@@ -156,12 +158,20 @@ func Video(ctx context.Context, path string, info media.Info, o Options) (*Resul
 		if o.Progress != nil && info.Duration > 0 {
 			o.Progress(min(1, t/info.Duration))
 		}
-		full, bands := det.next(img)
-		if full {
+		c := det.next(img)
+		if c.full {
 			res.FullReads++
 			return send(job{seq: seq, sample: i, t: t, full: true, keep: band{0, fh}, img: rows(img, 0, fh)})
 		}
-		for _, b := range bands {
+		if c.dy != 0 {
+			// Applied in time order with the OCR results; needs no worker.
+			mu.Lock()
+			results = append(results, result{seq: seq, sample: i, t: t, scroll: &c})
+			mu.Unlock()
+			seq++
+			res.Scrolls++
+		}
+		for _, b := range c.bands {
 			keep := band{max(0, b.y0-block/2), min(fh, b.y1+block/2)}
 			if err := send(job{seq: seq, sample: i, t: t, keep: keep,
 				img: rows(img, max(0, b.y0-margin), min(fh, b.y1+margin))}); err != nil {
@@ -221,6 +231,47 @@ func analyze(lines []ocr.Line, o Options) []textLine {
 }
 
 func mid(r image.Rectangle) int { return (r.Min.Y + r.Max.Y) / 2 }
+
+// scrollModel updates the text on screen after a scroll:
+//   - a line whose place did not change stays (a fixed bar, a sidebar);
+//   - a line whose text shows up dy pixels away moves there, with its secrets;
+//   - other lines whose place changed are dropped (scrolled off the screen,
+//     or gone; what is there now is either moved text or read again).
+func scrollModel(model []textLine, c *change, frameH int) []textLine {
+	bh := len(c.moved) / c.bw
+	out := make([]textLine, 0, len(model))
+	for _, l := range model {
+		if !anyIn(c.changed, c.bw, bh, l.box) {
+			out = append(out, l)
+			continue
+		}
+		nb := l.box.Add(image.Pt(0, c.dy))
+		if nb.Max.Y <= 0 || nb.Min.Y >= frameH || !anyIn(c.moved, c.bw, bh, nb) {
+			continue
+		}
+		l.box = nb
+		hits := make([]hit, len(l.hits))
+		for i, h := range l.hits {
+			h.box = h.box.Add(image.Pt(0, c.dy))
+			hits[i] = h
+		}
+		l.hits = hits
+		out = append(out, l)
+	}
+	return out
+}
+
+// anyIn says if any block under r is set in grid.
+func anyIn(grid []bool, bw, bh int, r image.Rectangle) bool {
+	for by := max(0, r.Min.Y/block); by <= min(bh-1, (r.Max.Y-1)/block); by++ {
+		for bx := max(0, r.Min.X/block); bx <= min(bw-1, (r.Max.X-1)/block); bx++ {
+			if grid[by*bw+bx] {
+				return true
+			}
+		}
+	}
+	return false
+}
 
 // replay applies OCR results in time order to a model of the text on
 // screen and turns the model's states into time ranges.
@@ -300,6 +351,10 @@ func replay(res *Result, results []result, end float64, o Options) {
 			r := results[i]
 			if r.full {
 				model = r.lines
+				continue
+			}
+			if r.scroll != nil {
+				model = scrollModel(model, r.scroll, res.FrameH)
 				continue
 			}
 			kept := model[:0:0]

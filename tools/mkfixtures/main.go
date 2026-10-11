@@ -29,6 +29,7 @@ var font = flag.String("font", "/usr/share/fonts/TTF/DejaVuSansMono.ttf", "monos
 func main() {
 	out := flag.String("out", "testdata/videos", "output folder")
 	long := flag.String("long", "", "write the 20-minute speed test video to this file and exit")
+	scroll := flag.String("scroll", "", "write the 20-minute nonstop scrolling video to this file and exit")
 	flag.Parse()
 
 	tmp, err := os.MkdirTemp("", "mkfixtures")
@@ -37,6 +38,10 @@ func main() {
 
 	if *long != "" {
 		makeLong(tmp, *long)
+		return
+	}
+	if *scroll != "" {
+		makeScroll(tmp, *scroll)
 		return
 	}
 	check(os.MkdirAll(*out, 0o755))
@@ -229,6 +234,35 @@ func makeLong(tmp, out string) {
 		"-f", "lavfi", "-i", "aevalsrc=exprs='0.307*sin(2*PI*440*t)':s=48000",
 		"-filter_complex", graph, "-map", "[v]", "-map", "1:a",
 		"-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
+		"-c:a", "aac", "-b:a", "128k", "-t", fmt.Sprint(dur), "-movflags", "+faststart", out)
+	fmt.Println("wrote", out)
+}
+
+// makeScroll writes the worst case: 20 minutes of code scrolling nonstop
+// (every frame differs), with the .env token in a fixed bar at the bottom
+// at 10:00-10:03.
+func makeScroll(tmp, out string) {
+	r := rand.New(rand.NewPCG(2, 0))
+	words := []string{"user", "order", "cache", "item", "price", "total", "request", "client"}
+	var page []string
+	for i := range 60 {
+		w, v := words[r.IntN(len(words))], words[r.IntN(len(words))]
+		page = append(page, fmt.Sprintf("    %s.Total += %s.Price * %d // line %d", w, v, r.IntN(100), i))
+	}
+	tf := filepath.Join(tmp, "scroll.txt")
+	// The page twice, scrolled by one page height: it loops without a jump.
+	check(os.WriteFile(tf, []byte(strings.Join(append(page, page...), "\n")), 0o644))
+	key := filepath.Join(tmp, "key.txt")
+	check(os.WriteFile(key, []byte("MY_API_TOKEN="+envToken), 0o644))
+	const dur = 1200.0
+	vf := fmt.Sprintf("drawtext=fontfile=%s:textfile=%s:expansion=normal:fontsize=26:fontcolor=%s:x=80:y='40-mod(t*60\\,text_h/2)':line_spacing=13,"+
+		"drawbox=x=0:y=960:w=iw:h=120:color=0x101010:t=fill,"+
+		"drawtext=fontfile=%s:textfile=%s:expansion=none:fontsize=26:fontcolor=%s:x=80:y=1000:enable='between(t,600,602.999)'",
+		*font, tf, fg, *font, key, fg)
+	run("-y", "-hide_banner", "-loglevel", "error",
+		"-f", "lavfi", "-i", fmt.Sprintf("color=c=%s:s=%dx%d:r=30:d=%g", bg, width, height, dur),
+		"-f", "lavfi", "-i", "aevalsrc=exprs='0.307*sin(2*PI*440*t)':s=48000",
+		"-vf", vf, "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-pix_fmt", "yuv420p",
 		"-c:a", "aac", "-b:a", "128k", "-t", fmt.Sprint(dur), "-movflags", "+faststart", out)
 	fmt.Println("wrote", out)
 }

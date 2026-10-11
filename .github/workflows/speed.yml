@@ -1,0 +1,51 @@
+# Speed test on a 4-core machine (close to a normal laptop).
+# Goal from the spec: a 20-minute 1080p video in under 5 minutes.
+name: Speed
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  speed:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache: false
+      - name: Install ffmpeg, tesseract, font
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg tesseract-ocr tesseract-ocr-eng fonts-dejavu-core
+      - name: Build
+        run: go build -o leakinator ./cmd/leakinator
+      - name: Make the 20-minute test videos
+        run: |
+          font=/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf
+          go run ./tools/mkfixtures -font $font -long /tmp/normal.mp4
+          go run ./tools/mkfixtures -font $font -scroll /tmp/scroll.mp4
+      - name: Check speed
+        run: |
+          echo "CPU cores: $(nproc)"
+          {
+            echo "| Video (20 min, 1080p30) | Time | OCR reads | Key at 10:00 found |"
+            echo "|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          fail=0
+          for v in normal scroll; do
+            start=$(date +%s)
+            ./leakinator /tmp/$v.mp4 --env testdata/test.env --json > /tmp/$v.json || true
+            secs=$(( $(date +%s) - start ))
+            read -r reads found <<EOF
+          $(python3 -c "import json;r=json.load(open('/tmp/$v.json'));print(r['stats']['ocr_reads'], any(s['label']=='MY_API_TOKEN' and abs(s['start']-600)<=1 for s in r['secrets']))")
+          EOF
+            echo "$v: ${secs}s, $reads OCR reads, key found: $found"
+            echo "| $v | ${secs} s | $reads | $found |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$secs" -ge 300 ] || [ "$found" != True ]; then fail=1; fi
+          done
+          [ "$fail" = 0 ] || { echo "Too slow, or the key was not found."; exit 1; }

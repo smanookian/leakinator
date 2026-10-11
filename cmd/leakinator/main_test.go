@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/smanookian/leakinator/internal/fakekeys"
+	"github.com/smanookian/leakinator/internal/media"
 	"github.com/smanookian/leakinator/internal/ocr"
 	"github.com/smanookian/leakinator/internal/report"
 	"github.com/smanookian/leakinator/secretengine"
@@ -25,12 +26,25 @@ import (
 
 const env = "../../testdata/test.env"
 
+// tool finds ffmpeg, ffprobe or tesseract like the app does. Missing tools
+// skip the test, or fail it when LEAKINATOR_REQUIRE_TOOLS=1 (in CI, so a
+// broken install can't hide behind a skip).
+func tool(t *testing.T, name string) string {
+	t.Helper()
+	p, err := media.Tool(name)
+	if err != nil {
+		if os.Getenv("LEAKINATOR_REQUIRE_TOOLS") == "1" {
+			t.Fatal(err)
+		}
+		t.Skip(err)
+	}
+	return p
+}
+
 func video(t *testing.T, name string) string {
 	t.Helper()
-	for _, tool := range []string{"ffmpeg", "ffprobe", "tesseract"} {
-		if _, err := exec.LookPath(tool); err != nil {
-			t.Skipf("%s not installed", tool)
-		}
+	for _, tn := range []string{"ffmpeg", "ffprobe", "tesseract"} {
+		tool(t, tn)
 	}
 	p := filepath.Join("../../testdata/videos", name)
 	// Stat makes `go test` caching notice changes to the video.
@@ -158,7 +172,7 @@ func TestSmallText(t *testing.T) {
 
 // ebur128 measures loudness the way ffmpeg does on its own.
 func ffmpegLUFS(t *testing.T, path string) (lufs, peak float64) {
-	out, err := exec.Command("ffmpeg", "-nostats", "-hide_banner", "-i", path, "-map", "0:a:0",
+	out, err := exec.Command(tool(t, "ffmpeg"), "-nostats", "-hide_banner", "-i", path, "-map", "0:a:0",
 		"-af", "ebur128=peak=true", "-f", "null", "-").CombinedOutput()
 	if err != nil {
 		t.Fatal(err)
@@ -281,7 +295,7 @@ func enlarge(t *testing.T, jpg []byte, k int) *image.Gray {
 		t.Fatal(err)
 	}
 	w, h := img.Bounds().Dx()*k, img.Bounds().Dy()*k
-	cmd := exec.Command("ffmpeg", "-v", "error", "-f", "jpeg_pipe", "-i", "-",
+	cmd := exec.Command(tool(t, "ffmpeg"), "-v", "error", "-f", "jpeg_pipe", "-i", "-",
 		"-vf", "scale="+strconv.Itoa(w)+":"+strconv.Itoa(h)+":flags=lanczos,format=gray", "-f", "rawvideo", "-")
 	cmd.Stdin = bytes.NewReader(jpg)
 	pix, err := cmd.Output()
