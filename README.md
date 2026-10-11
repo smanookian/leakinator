@@ -33,20 +33,21 @@ Audio
 
 Leakinator needs `ffmpeg` and `tesseract` (with English).
 
-**Arch / Omarchy** (one step, installs everything):
+**Linux and macOS** (one step, installs everything):
 
 ```
-yay -S leakinator-bin
+curl -fsSL https://raw.githubusercontent.com/smanookian/leakinator/main/install.sh | sh
 ```
 
-**macOS**: `brew install ffmpeg tesseract`, then download the `darwin` file from
-[Releases](https://github.com/smanookian/leakinator/releases) and put `leakinator` in your PATH.
+It installs ffmpeg and tesseract with your package manager (pacman, apt, dnf or
+Homebrew; asks for your password), downloads `leakinator` from
+[Releases](https://github.com/smanookian/leakinator/releases), checks its checksum
+and puts it in `~/.local/bin`. Run it again to update.
+
+**Arch / Omarchy as a package**: clone this repo, then `cd pkg/aur && makepkg -si`.
 
 **Windows**: `winget install Gyan.FFmpeg UB-Mannheim.TesseractOCR`, then download
 the `windows` zip from [Releases](https://github.com/smanookian/leakinator/releases).
-
-**Other Linux**: install `ffmpeg` and `tesseract-ocr` (plus `tesseract-ocr-eng`)
-with your package manager, then use the `linux` file from Releases.
 
 **With Go**: `go install github.com/smanookian/leakinator/cmd/leakinator@latest`
 
