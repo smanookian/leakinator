@@ -184,6 +184,7 @@ func check(ctx context.Context, o options, stdout, stderr io.Writer, code *int) 
 		Checks: checks, MinText: o.minText}
 
 	progress := func(float64) {}
+	clearProgress := func() {}
 	if isTerminal(stderr) {
 		var mu sync.Mutex
 		last := -1
@@ -195,7 +196,8 @@ func check(ctx context.Context, o options, stdout, stderr io.Writer, code *int) 
 				fmt.Fprintf(stderr, "\rChecking… %d%% ", pct)
 			}
 		}
-		defer fmt.Fprint(stderr, "\r              \r")
+		// Erase the progress line before anything else is printed.
+		clearProgress = func() { fmt.Fprint(stderr, "\r                    \r") }
 	}
 
 	var wg sync.WaitGroup
@@ -214,6 +216,7 @@ func check(ctx context.Context, o options, stdout, stderr io.Writer, code *int) 
 		}
 	}
 	wg.Wait()
+	clearProgress()
 	if err := errors.Join(scanErr, audioErr); err != nil {
 		return err
 	}

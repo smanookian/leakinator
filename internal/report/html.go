@@ -17,7 +17,8 @@ import (
 	"github.com/smanookian/leakinator/internal/scan"
 )
 
-const thumbWidth = 640
+// Thumbnails are wide enough that code in them is readable in the report.
+const thumbWidth = 1280
 
 // HTML writes a self-contained report page. Thumbnails are cut from the
 // video; every secret found on a thumbnail is pixelated beyond reading.
@@ -112,10 +113,11 @@ var page = template.Must(template.New("report").Parse(`<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Leakinator: {{.R.File}}</title>
 <style>
-body{font:15px/1.5 system-ui,sans-serif;max-width:900px;margin:2em auto;padding:0 1em;color:#222}
+body{font:15px/1.5 system-ui,sans-serif;max-width:1280px;margin:2em auto;padding:0 1em;color:#222}
 h1{font-size:1.4em}h2{font-size:1.15em;margin-top:2em;border-bottom:1px solid #ddd}
-.item{display:flex;gap:1em;align-items:flex-start;margin:1em 0}
-.item img{width:320px;border:1px solid #ccc;border-radius:4px}
+.item{margin:1.2em 0 2em}
+.item p{margin:0 0 .4em}
+.item img{display:block;width:100%;height:auto;border:1px solid #ccc;border-radius:4px}
 .when{font-family:ui-monospace,monospace;font-weight:600}
 .bad{color:#c62828}.warn{color:#b26a00}.ok{color:#2e7d32}
 .summary{font-size:1.1em;font-weight:600;padding:.7em 1em;border-radius:6px;background:#f5f5f5}
@@ -128,11 +130,11 @@ h1{font-size:1.4em}h2{font-size:1.15em;margin-top:2em;border-bottom:1px solid #d
 {{- if not (or .R.Summary.Secrets .R.Summary.Warnings)}}<span class="ok">All good.</span>{{end -}}
 </p>
 {{if .HasSecrets}}<h2>Secrets</h2>
-{{range .Secrets}}<div class="item"><img src="{{.Thumb}}" alt="frame at {{.When}}"><div><span class="when bad">{{.When}}</span><br>{{.Text}}</div></div>
+{{range .Secrets}}<div class="item"><p><span class="when bad">{{.When}}</span> {{.Text}}</p><img src="{{.Thumb}}" alt="frame at {{.When}}"></div>
 {{else}}<p class="ok">No secrets found.</p>{{end}}
 <p><small>Found secrets are pixelated in the pictures. Only the first 4 characters are shown.</small></p>{{end}}
 {{if .HasText}}<h2>Text size</h2>
-{{range .Small}}<div class="item"><img src="{{.Thumb}}" alt="frame at {{.When}}"><div><span class="when warn">{{.When}}</span><br>{{.Text}}</div></div>
+{{range .Small}}<div class="item"><p><span class="when warn">{{.When}}</span> {{.Text}}</p><img src="{{.Thumb}}" alt="frame at {{.When}}"></div>
 {{else}}<p class="ok">Text is big enough for a phone.</p>{{end}}{{end}}
 {{if .HasAudio}}<h2>Audio</h2>
 {{if .R.NoAudio}}<p>No audio track.</p>{{else if .R.Audio}}{{with .R.Audio}}

@@ -56,6 +56,8 @@ Status: planned (2026-10-08).
 ## 8. Not in v1
 Auto-blur export. Desktop app. Live screen masking (that is Secret Shield). Checking screenshots/images (easy later).
 
+**Next (v2):** Spoken secrets. Local speech-to-text (e.g. whisper.cpp), then the same secret engine on the words. Opt-in (`--speech`), because it needs a speech model (75-500 MB) and adds about 1-3 min per 20-min video.
+
 ## 9. Done when
 1. Test video with a fake key from a test `.env` shown for 2 seconds → found, correct timestamp.
 2. Test video with known-pattern fake keys (OpenAI, GitHub, AWS) → all found.
