@@ -74,7 +74,9 @@ leakinator video.mp4 --env .env && upload video.mp4
 
 - **Frames**: looks at 2 frames per second, but reads text (OCR with Tesseract)
   only where the screen changed. A blinking cursor causes no new reads, a
-  moving mouse only a few. Our 20-minute 1080p test video took 24 seconds on 4 CPU cores.
+  moving mouse only a few. Scrolling is followed, so only new lines are read.
+  On a 4-core machine a 20-minute 1080p video takes about 1 minute, and about
+  3.5 minutes if it scrolls the whole time.
 - **Your secrets**: every value of 8 or more characters in the `.env` files
   (not numbers, not `true`/`false`). A match counts with up to 1 OCR mistake per
   10 characters. 12 or more characters in a row count as a partial match
@@ -115,6 +117,12 @@ for _, f := range eng.Scan(textFromScreen) {
 go test ./...                                   # video tests need ffmpeg and tesseract
 go run ./tools/mkfixtures                       # remake the test videos in testdata/videos
 go run ./tools/mkfixtures -long /tmp/long.mp4   # 20-minute speed test video
+go run ./tools/mkfixtures -scroll /tmp/s.mp4    # 20 minutes of nonstop scrolling
+tools/smoke.sh ~/.local/bin/leakinator          # check an installed leakinator
 ```
+
+GitHub Actions tests every push on fresh Ubuntu, Debian, Fedora, Arch, macOS and
+Windows: install, then the test videos (`Systems`). `Speed` runs the 20-minute
+videos on a 4-core machine every Monday and fails above 5 minutes.
 
 MIT license.
